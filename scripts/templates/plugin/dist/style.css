@@ -1,0 +1,19 @@
+/* 插件模板样式：透明底 + 主题变量；不要加外层圆角卡片、边框、阴影。 */
+:root { color-scheme: dark; font-family: var(--island-font, "Segoe UI", system-ui, sans-serif); }
+* { box-sizing: border-box; }
+html, body, #app { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
+body { color: var(--island-ink, #F4F4F5); }
+button { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+
+.small { display: flex; width: 100%; height: 100%; align-items: center; gap: 8px; padding: 0 14px; text-align: left; }
+.small b { color: var(--island-accent, #3B82F6); font-size: 17px; font-variant-numeric: tabular-nums; }
+.small small { color: var(--island-ink-dim, #A1A1AA); font-size: 11px; }
+
+.medium { display: grid; width: 100%; height: 100%; place-content: center; gap: 6px; text-align: center; }
+.medium b { font-size: 38px; font-variant-numeric: tabular-nums; }
+.medium small { color: var(--island-ink-dim, #A1A1AA); font-size: 10px; letter-spacing: .18em; }
+.hint { letter-spacing: 0; }
+
+.large { display: flex; width: 100%; height: 100%; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
+.large h1 { margin: 0; font-size: 64px; font-variant-numeric: tabular-nums; }
+.large button { padding: 8px 14px; border: 1px solid rgba(255,255,255,.16); border-radius: 10px; background: rgba(255,255,255,.06); font-size: 12px; }

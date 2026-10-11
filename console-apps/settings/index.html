@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Activity Island 控制台管理</title>
+  <link rel="stylesheet" href="../theme.css" />
+  <style>
+    :root { color-scheme: dark; font-family: var(--font); color: var(--ink); background: var(--panel-bg); }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: var(--panel-bg); }
+    body { display: flex; height: 100%; flex-direction: column; overflow: hidden; background: radial-gradient(circle at 80% 0%, var(--accent-soft), transparent 34%), var(--panel-bg); }
+    .window-bar { position: relative; z-index: 30; height: 42px; flex: 0 0 42px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; border-bottom: 1px solid var(--stroke); background: var(--panel-bg); -webkit-app-region: drag; }
+    .window-bar strong { font-size: 13px; font-weight: 600; }
+    button { font: inherit; color: inherit; cursor: pointer; }
+    .close { width: 30px; height: 30px; border: 0; border-radius: 7px; background: transparent; font-size: 20px; -webkit-app-region: no-drag; }
+    .close:hover { background: var(--stroke); }
+    .layout { display: grid; flex: 1 1 auto; min-height: 0; grid-template-columns: 190px minmax(0, 1fr); }
+    aside { min-height: 0; overflow: auto; padding: 20px 12px; border-right: 1px solid var(--stroke); background: var(--surface-1); }
+    .brand { display: flex; align-items: center; gap: 10px; padding: 0 9px 22px; }
+    .mark { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 8px; background: linear-gradient(135deg,var(--accent),var(--accent)); }
+    .brand small { display: block; margin-top: 2px; color: var(--ink-faint); font-size: 11px; }
+    nav { display: grid; gap: 5px; }
+    nav button { padding: 10px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--ink-muted); text-align: left; font-size: 12px; }
+    nav button.active, nav button:hover { background: var(--accent-soft); color: #fff; }
+    .primary { padding: 9px 10px; border: 1px solid var(--accent-line); border-radius: 8px; background: var(--accent-soft); font-size: 11px; }
+    main { min-width: 0; min-height: 0; padding: 34px 38px; overflow: auto; }
+    h1 { margin: 0; font-size: 24px; letter-spacing: -.04em; }
+    .subtitle { margin: 8px 0 24px; color: var(--ink-muted); font-size: 12px; }
+    .card { margin-bottom: 14px; padding: 18px; border: 1px solid var(--stroke); border-radius: 14px; background: var(--surface-1); }
+    .card-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 15px; }
+    .card h2 { margin: 0; font-size: 14px; }
+    .hint, .note { color: var(--ink-faint); font-size: 11px; }
+    .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .choice { padding: 13px; border: 1px solid var(--stroke); border-radius: 10px; background: var(--surface-1); text-align: left; }
+    .choice.active { border-color: var(--accent); background: var(--accent-soft); }
+    .choice b, .choice small { display: block; }
+    .choice small { margin-top: 5px; color: var(--ink-muted); font-size: 11px; }
+    .line { display: flex; align-items: center; gap: 10px; }
+    input[type=number] { width: 90px; padding: 8px; border: 1px solid var(--stroke); border-radius: 8px; background: var(--surface-2); color: #fff; }
+    input[type=range] { flex: 1; accent-color: var(--accent); }
+    .value { min-width: 44px; color: var(--ink-muted); font-size: 12px; }
+    .plugin { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--stroke); }
+    .plugin:first-child { border-top: 0; }
+    .plugin-info { flex: 1; min-width: 0; }
+    .plugin-info b { font-size: 13px; }
+    .plugin-info small { display: block; margin-top: 4px; color: var(--ink-faint); }
+    .plugin-enabled { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-muted); font-size: 11px; white-space: nowrap; }
+    .plugin-enabled input { width: 16px; height: 16px; accent-color: var(--accent); }
+    .plugin.disabled { opacity: .58; }
+    .plugin.disabled .plugin-info b { color: var(--ink-muted); }
+    /* 弹窗只覆盖顶栏以下：窗口标题与关闭键任何时候都能点到。 */
+    .modal-mask { position: fixed; inset: 42px 0 0 0; z-index: 20; display: grid; place-items: center; padding: 24px; background: var(--scrim); backdrop-filter: blur(4px); }
+    .modal { width: min(620px, 100%); max-height: min(560px, 100%); overflow: auto; padding: 18px; border: 1px solid var(--stroke); border-radius: 14px; background: var(--panel-bg); box-shadow: 0 24px 70px rgba(0,0,0,.55); }
+    .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .modal-head h2 { margin: 0; font-size: 16px; }
+    .modal-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+    .modal-actions .hint { flex: 1; }
+    /* 工作台：列表只显示「名字 + 示例图」，克制一点；点进去才看详情 */
+    .page-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 16px; }
+    .page-actions { display: flex; align-items: center; gap: 8px; padding-bottom: 20px; }
+    .wb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+    .wb-card { display: flex; flex-direction: column; gap: 10px; padding: 10px; border: 1px solid var(--stroke); border-radius: 12px; background: var(--surface-1); color: inherit; text-align: left; cursor: pointer; }
+    .wb-card:hover { border-color: var(--accent-line); background: var(--surface-2); }
+    .wb-thumb { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 10; overflow: hidden; border-radius: 8px; background: linear-gradient(140deg, var(--surface-1), var(--panel-bg)); }
+    .wb-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .wb-thumb .letter { font-size: 28px; font-weight: 700; color: var(--ink-faint); }
+    .wb-name { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+    .wb-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .wb-meta { color: var(--ink-faint); font-size: 11px; }
+    .wb-flag { padding: 1px 6px; border-radius: 999px; background: var(--success-soft); color: var(--success-ink); font-size: 11px; }
+    .wb-detail-thumb { width: 100%; max-height: 190px; overflow: hidden; border-radius: 10px; background: linear-gradient(140deg, var(--surface-1), var(--panel-bg)); }
+    .wb-detail-thumb img { width: 100%; display: block; }
+    .wb-kv { display: grid; grid-template-columns: 76px 1fr; gap: 4px 10px; margin-top: 12px; font-size: 11px; color: var(--ink-muted); }
+    .wb-kv b { color: var(--ink-faint); font-weight: 400; }
+    .wb-kv code { word-break: break-all; }
+    /* 工作台：能力告知是重点，所以信任提示单独一张卡，不用普通 note 的灰字 */
+    .card.trust { border-color: var(--warning-line); background: var(--warning-soft); color: var(--warning-ink); font-size: 12px; line-height: 1.7; }
+    .wb-caps { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .wb-cap { padding: 5px 9px; border: 1px solid var(--stroke); border-radius: 999px; background: var(--surface-1); color: var(--ink); font-size: 11px; }
+    .wb-cap.risky { border-color: var(--danger-line); background: var(--danger-soft); color: var(--danger-ink); }
+    .wb-cap.new { border-color: var(--warning-line); background: var(--warning-soft); color: var(--warning-ink); }
+    .wb-active { display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px; border: 1px solid var(--success-line); border-radius: 999px; background: var(--success-soft); color: var(--success-ink); font-size: 11px; }
+    .wb-badge { margin-left: 6px; padding: 2px 7px; border-radius: 999px; background: var(--stroke); color: var(--ink-muted); font-size: 11px; }
+    .danger { padding: 7px 10px; border: 1px solid var(--danger-line); border-radius: 7px; background: transparent; color: var(--danger-ink); font-size: 11px; }
+    .plugin-order { display: flex; align-items: center; gap: 6px; }
+    .ghost { width: 26px; padding: 6px 0; border: 1px solid var(--stroke); border-radius: 7px; background: var(--surface-1); color: var(--ink-muted); font-size: 11px; }
+    .ghost:hover:not(:disabled) { background: var(--stroke); color: #fff; }
+    .ghost:disabled { opacity: .3; cursor: default; }
+    .ghost.wide { width: auto; padding: 6px 9px; }
+    #plugin-log-body { max-height: 260px; margin: 10px 0 0; overflow: auto; color: var(--ink); font: 11px/1.6 var(--mono); white-space: pre-wrap; word-break: break-all; }
+    .issue { padding: 8px 10px; border-bottom: 1px solid var(--surface-2); }
+    .issue:last-child { border-bottom: 0; }
+    .issue b { display: block; color: var(--danger-ink); font-size: 12px; }
+    .issue small { display: block; margin-top: 3px; color: var(--ink-faint); font-size: 11px; word-break: break-all; }
+    .params-row { padding: 4px 0 14px; }
+    /* 操作反馈一律内嵌在页面里，不用原生 alert/confirm 弹窗 */
+    #plugin-notice { margin-bottom: 10px; border-color: var(--danger-line); color: var(--danger-ink); font-size: 12px; }
+    .danger.confirming { border-color: transparent; background: var(--danger); color: #fff; }
+    .params { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--stroke); border-radius: 10px; background: var(--surface-1); }
+    .param { display: grid; gap: 5px; font-size: 11px; color: var(--ink-muted); }
+    .param small { display: block; margin-top: 2px; color: var(--ink-faint); font-size: 11px; }
+    .param input, .param select, .param textarea { padding: 7px 9px; border: 1px solid var(--stroke); border-radius: 8px; background: var(--surface-1); color: var(--ink); font: inherit; font-size: 12px; }
+    .param input[type="checkbox"] { width: 16px; height: 16px; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <header class="window-bar"><strong>Activity Island 控制台管理</strong><button class="close" id="close">×</button></header>
+  <div class="layout">
+    <aside>
+      <div class="brand"><span class="mark">◈</span><div><b>Activity Island</b><small>控制台管理</small></div></div>
+      <nav><button class="active" data-tab="island">灵动岛</button><button data-tab="plugins">插件</button><button data-tab="workbench">工作台</button><button data-tab="about">关于</button></nav>
+    </aside>
+    <main>
+      <section id="island">
+        <h1>灵动岛</h1><p class="subtitle">调整待机表现与常驻插件的显示比例。</p>
+        <div class="card"><div class="card-head"><h2>无事件时</h2><span class="hint">待机状态</span></div><div class="choices"><button class="choice" data-idle="float"><b>悬浮</b><small>保持待机胶囊，鼠标移入时展开。</small></button><button class="choice" data-idle="collapsed"><b>收起</b><small>收成顶部 64 × 8 横条，悬停时恢复。</small></button></div></div>
+        <div class="card"><div class="card-head"><h2>顶部距离</h2><span class="hint">收起横条始终贴顶</span></div><div class="line"><input id="top" type="number" min="0" max="200" step="1"><span class="hint">px</span><button class="primary" id="save-top">应用</button></div></div>
+        <div class="card"><div class="card-head"><h2>mini 大小</h2><span class="hint">只影响小岛与待机胶囊</span></div><div class="line"><span class="hint">小</span><input id="scale" type="range" min="0.5" max="1.5" step="0.05"><span class="hint">大</span><span class="value" id="scale-value"></span><button class="primary" id="save-scale">应用</button></div></div>
+      </section>
+      <section id="plugins" hidden>
+        <div class="page-head">
+          <div>
+            <h1>插件</h1>
+            <p class="subtitle">这里是插件安装与运行管理的唯一入口：安装、启用、禁用、排序、参数、日志、重载和卸载。改开发目录里的文件会自动同步并热重载。</p>
+          </div>
+          <div class="page-actions">
+            <button class="primary" id="plugin-install">选择目录安装</button>
+            <button class="ghost wide" id="plugin-import">导入插件包</button>
+            <button class="ghost wide" id="plugin-skill" title="下载「插件生成 Skill 包」：解压到本地 AI（Claude Code 等）的 skills 目录，AI 读 SKILL.md 就能按规范生成插件">下载 Skill 包</button>
+          </div>
+        </div>
+        <div class="card" id="plugin-notice" hidden></div>
+        <div class="card" id="plugin-issues" hidden></div>
+        <div class="card" id="plugin-list"></div>
+        <div class="card"><h2>自己做一个插件</h2><p class="note">插件就是普通网页：<code>plugin.json</code> 清单 + <code>dist/</code> 里的 HTML / JS / CSS，装好后由宿主在岛上直接渲染。「导出」把插件打成 <code>.islandplugin</code> 包，别人用「导入插件包」直接安装。「下载 Skill 包」导出插件生成规范（SKILL.md），给 Claude Code 等本地 AI 装上后就能按规范帮你写插件；工作台的规范在「工作台」页下载，两者不通用。</p></div>
+      </section>
+      <section id="workbench" hidden>
+        <div class="page-head">
+          <div>
+            <h1>工作台</h1>
+            <p class="subtitle">右键小岛打开的就是工作台。可以装多个，<b>同时只有一个在用</b>。</p>
+          </div>
+          <div class="page-actions">
+            <button class="primary" id="workbench-install">选择目录安装</button>
+            <button class="ghost wide" id="workbench-import">从插件包导入</button>
+            <button class="ghost wide" id="workbench-skill" title="下载「工作台生成 Skill 包」：解压到本地 AI（Claude Code 等）的 skills 目录，AI 读 SKILL.md 就能按规范生成工作台">下载 Skill 包</button>
+          </div>
+        </div>
+        <div class="card trust" id="workbench-trust"></div>
+        <div class="card" id="workbench-notice" hidden></div>
+        <div class="card" id="workbench-issues" hidden></div>
+        <div class="wb-grid" id="workbench-list"></div>
+      </section>
+      <section id="about" hidden><h1>关于</h1><p class="subtitle">Activity Island 独立 Web 插件运行时。</p><div class="card"><h2>Host 管理窗口与动画，插件决定内容和样式。</h2><p class="note">当前版本 <span id="app-version">—</span></p></div></section>
+    </main>
+  </div>
+  <div class="modal-mask" id="plugin-modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="plugin-modal-title">
+      <div class="modal-head"><h2 id="plugin-modal-title">插件</h2><button class="close" id="plugin-modal-close" type="button" aria-label="关闭">×</button></div>
+      <div id="plugin-modal-content"></div>
+    </div>
+  </div>
+  <script>
+    const modal = document.getElementById('plugin-modal')
+   const modalContent = document.getElementById('plugin-modal-content')
+   const modalTitle = document.getElementById('plugin-modal-title')
+   const api = window.islandSettings
+    let settings = { idleMode: 'float', islandTop: 8, miniScale: 1, pluginOrder: [] }
+    let pluginList = []
+    const $ = id => document.getElementById(id)
+    // 操作反馈留在控制台页面；参数和日志由宿主模态框承载，不用原生 alert/confirm。
+    let noticeTimer = null
+    function notify(text) {
+      const box = $('plugin-notice')
+      box.textContent = text
+      box.hidden = !text
+      if (noticeTimer) clearTimeout(noticeTimer)
+      if (text) noticeTimer = setTimeout(() => { box.hidden = true }, 8000)
+    }
+    /** 危险操作两步确认：第一次点击变成"确认卸载"，3 秒内再点一次才真的执行。 */
+    function twoStep(button, confirmLabel, run) {
+      if (button.dataset.confirming === '1') {
+        button.dataset.confirming = ''
+        button.classList.remove('confirming')
+        button.textContent = button.dataset.label ?? button.textContent
+        void run()
+        return
+      }
+      button.dataset.label = button.textContent
+      button.dataset.confirming = '1'
+      button.classList.add('confirming')
+      button.textContent = confirmLabel
+      setTimeout(() => {
+        if (button.dataset.confirming !== '1') return
+        button.dataset.confirming = ''
+        button.classList.remove('confirming')
+        button.textContent = button.dataset.label
+      }, 3000)
+    }
+    function render() { document.querySelectorAll('[data-idle]').forEach(el => el.classList.toggle('active', el.dataset.idle === settings.idleMode)); $('top').value = settings.islandTop; $('scale').value = settings.miniScale; $('scale-value').textContent = `${Number(settings.miniScale).toFixed(2)}×`; if (settings.appVersion) $('app-version').textContent = settings.appVersion }
+    // mini 条顺序 = 用户顺序 > priority > 名字，和后端 orderPlugins 保持一致。
+    function orderedPlugins(items) {
+      const order = Array.isArray(settings.pluginOrder) ? settings.pluginOrder : []
+      const rank = id => { const index = order.indexOf(id); return index < 0 ? Number.MAX_SAFE_INTEGER : index }
+      return [...items].sort((a, b) => {
+        const ra = rank(a.id), rb = rank(b.id)
+        if (ra !== rb) return ra - rb
+        const pa = Number.isFinite(Number(a.priority)) ? Number(a.priority) : 50
+        const pb = Number.isFinite(Number(b.priority)) ? Number(b.priority) : 50
+        if (pa !== pb) return pb - pa
+        return String(a.name).localeCompare(String(b.name), 'zh-CN')
+      })
+    }
+    function renderPlugins(items) {
+      pluginList = orderedPlugins(items)
+      $('plugin-list').innerHTML = pluginList.length ? pluginList.map((p, index) => `<div class="plugin${p.enabled === false ? ' disabled' : ''}"><div class="plugin-info"><b>${p.name}</b><small>${p.id} · v${p.version} · priority ${Number.isFinite(Number(p.priority)) ? p.priority : 50}${p.sourceDir ? ` · 源码 ${p.sourceDir}` : ''}${p.settings ? ` · ${p.settings.fields?.length ?? 0} 个参数` : ''}</small></div><div class="plugin-order"><label class="plugin-enabled"><input type="checkbox" data-enabled="${p.id}" ${p.enabled === false ? '' : 'checked'} />启用</label><button class="ghost" data-move="up" data-index="${index}" ${index === 0 ? 'disabled' : ''} title="前移">↑</button><button class="ghost" data-move="down" data-index="${index}" ${index === pluginList.length - 1 ? 'disabled' : ''} title="后移">↓</button>${p.settings ? `<button class="ghost wide" data-settings="${p.id}" title="填写插件参数">参数</button>` : ''}<button class="ghost wide" data-logs="${p.id}" title="查看插件日志">日志</button><button class="ghost wide" data-reload="${p.id}" title="重新加载（改开发目录后通常会自动热重载）">重载</button><button class="ghost wide" data-export="${p.id}" title="导出 .islandplugin 插件包，分享给别人安装">导出</button><button class="danger" data-uninstall="${p.id}">卸载</button></div></div>`).join('') : '<p class="note">暂无插件，点上方「选择目录安装」或「导入插件包」装一个。</p>'
+      document.querySelectorAll('[data-enabled]').forEach(input => input.onchange = async () => {
+         const result = await api.setPluginEnabled(input.dataset.enabled, input.checked)
+         if (!result?.ok) { input.checked = !input.checked; notify(result?.error ?? '切换插件状态失败'); return }
+         notify(input.checked ? `已启用 ${input.dataset.enabled}` : `已禁用 ${input.dataset.enabled}`)
+         renderPlugins(await api.plugins())
+       })
+       document.querySelectorAll('[data-uninstall]').forEach(button => button.onclick = async () => twoStep(button, '确认卸载', async () => {
+        await api.uninstall(button.dataset.uninstall)
+        pluginList = await api.plugins()
+        renderPlugins(pluginList)
+        renderIssues()
+        notify(`已卸载 ${button.dataset.uninstall}`)
+      }))
+      document.querySelectorAll('[data-move]').forEach(button => button.onclick = async () => {
+        const index = Number(button.dataset.index)
+        const target = button.dataset.move === 'up' ? index - 1 : index + 1
+        if (target < 0 || target >= pluginList.length) return
+        const ids = pluginList.map(item => item.id)
+        ;[ids[index], ids[target]] = [ids[target], ids[index]]
+        settings = await api.setPluginOrder(ids)
+        renderPlugins(await api.plugins())
+      })
+      document.querySelectorAll('[data-logs]').forEach(button => button.onclick = () => openLogs(button.dataset.logs))
+      document.querySelectorAll('[data-export]').forEach(button => button.onclick = async () => {
+        const result = await api.exportPluginPackage(button.dataset.export)
+        if (result?.canceled) return
+        if (!result?.ok) { notify(result?.error ?? '导出失败'); return }
+        notify(`已导出：${result.path}（${Math.round((result.bytes ?? 0) / 1024)} KB）—— 别人用「导入插件包」直接装`)
+      })
+      document.querySelectorAll('[data-settings]').forEach(button => button.onclick = () => toggleParams(button.dataset.settings))
+      document.querySelectorAll('[data-reload]').forEach(button => button.onclick = async () => {
+        const result = await api.reload(button.dataset.reload)
+        notify(result?.ok ? `已重载 ${button.dataset.reload}` : `重载失败：${result?.error ?? '未知原因'}`)
+        renderPlugins(await api.plugins())
+      })
+    }
+
+    // 插件参数：由 plugin.json 的 settings.fields 声明，宿主渲染表单，插件用 island.settings 读同一份数据。
+    async function toggleParams(pluginId) {
+      modalTitle.textContent = `参数 · ${pluginId}`
+      modal.hidden = false
+      modalContent.innerHTML = ''
+      const result = await api.pluginSettings(pluginId)
+      const fields = result?.schema?.fields ?? []
+      const values = result?.values ?? {}
+      if (!fields.length) { modal.hidden = false; modalContent.innerHTML = '<p class="note">这个插件没有声明参数。</p>'; return }
+      modal.hidden = false
+      modalContent.innerHTML = `<div class="params">${fields.map(field => {
+        const value = values[field.key] ?? field.default ?? ''
+        const label = `<span>${field.label}${field.description ? `<small>${field.description}</small>` : ''}</span>`
+        if (field.type === 'boolean') return `<label class="param">${label}<input type="checkbox" data-key="${field.key}" ${value ? 'checked' : ''} /></label>`
+        if (field.type === 'select') return `<label class="param">${label}<select data-key="${field.key}">${(field.options ?? []).map(option => `<option value="${option.value}"${String(option.value) === String(value) ? ' selected' : ''}>${option.label}</option>`).join('')}</select></label>`
+        if (field.type === 'textarea') return `<label class="param">${label}<textarea rows="2" data-key="${field.key}" placeholder="${field.placeholder ?? ''}">${value}</textarea></label>`
+        const type = field.type === 'number' ? 'number' : field.type === 'password' ? 'password' : field.type === 'color' ? 'color' : 'text'
+        return `<label class="param">${label}<input type="${type}" data-key="${field.key}" value="${String(value).replace(/"/g, '&quot;')}" placeholder="${field.placeholder ?? ''}" ${field.min !== undefined ? `min="${field.min}"` : ''} ${field.max !== undefined ? `max="${field.max}"` : ''} /></label>`
+      }).join('')}<div class="ai-actions"><button class="ghost wide" data-save-params="${pluginId}">保存参数</button></div></div>`
+      modalContent.querySelector('[data-save-params]').onclick = async () => {
+        const patch = {}
+        modalContent.querySelectorAll('[data-key]').forEach(input => {
+          const key = input.dataset.key
+          patch[key] = input.type === 'checkbox' ? input.checked : input.type === 'number' ? Number(input.value) : input.value
+        })
+        await api.setPluginSettings(pluginId, patch)
+        const saved = modalContent.querySelector('[data-save-params]')
+        saved.textContent = '已保存 ✓'
+        setTimeout(() => { saved.textContent = '保存参数' }, 1200)
+      }
+    }
+    let logPluginId = null
+    async function openLogs(pluginId) {
+      logPluginId = pluginId
+      modalTitle.textContent = `日志 · ${pluginId}`
+      modal.hidden = false
+      modalContent.innerHTML = '<div class="modal-actions"><button class="ghost wide" id="log-refresh">刷新</button><button class="ghost wide" id="log-clear">清空</button></div><pre id="plugin-log-body"></pre>'
+      $('log-refresh').onclick = refreshLogs
+      $('log-clear').onclick = async () => { await api.clearLogs(logPluginId); await refreshLogs() }
+      await refreshLogs()
+    }
+    async function refreshLogs() {
+      if (!logPluginId) return
+      const result = await api.logs(logPluginId).catch(() => null)
+      const lines = result?.lines ?? []
+      $('plugin-log-body').textContent = lines.length ? lines.join('\n') : '（还没有日志）'
+      $('plugin-log-body').scrollTop = $('plugin-log-body').scrollHeight
+    }
+    async function renderIssues() {
+      const issues = await api.issues().catch(() => [])
+      const box = $('plugin-issues')
+      if (!Array.isArray(issues) || !issues.length) { box.hidden = true; box.innerHTML = ''; return }
+      box.hidden = false
+      box.innerHTML = `<div class="card-head"><h2>未加载的插件</h2><span class="hint">${issues.length} 个</span></div>` + issues.map(issue => `<div class="issue"><b>${issue.id ?? '未知 id'}</b><small>${issue.reason}</small><small>${issue.directory}</small></div>`).join('')
+    }
+    $('plugin-modal-close').onclick = () => { modal.hidden = true; modalContent.innerHTML = ''; logPluginId = null }
+
+    // ---------------------------------------------------------------- 工作台
+    // 工作台和插件是**独立的两块，只是风格相似**：列表只显示「名字 + 示例图」，
+    // 点进去才看详情（能力告知、参数、日志、重载、导出、卸载）。独占启用 —— 一次只有一个。
+    let workbenchList = []
+    let workbenchTrust = ''
+    /** 碰得到机器和网络的能力：展示时标红，让用户先看到最该注意的几行。 */
+    const RISKY_CAPS = ['run', 'http', 'open']
+    const notice = (text) => {
+      const box = $('workbench-notice')
+      box.textContent = text
+      box.hidden = !text
+      if (text) setTimeout(() => { if (box.textContent === text) box.hidden = true }, 8000)
+    }
+    const capChips = (item) => {
+      const unack = new Set(item.unacknowledged ?? [])
+      return (item.capabilities ?? []).map(cap => {
+        const classes = ['wb-cap']
+        if (RISKY_CAPS.includes(cap.capability)) classes.push('risky')
+        if (unack.has(cap.capability)) classes.push('new')
+        return `<span class="${classes.join(' ')}" title="${cap.capability}">${cap.label}${unack.has(cap.capability) ? '（未确认）' : ''}</span>`
+      }).join('')
+    }
+    /** 示例图：作者提供了就用，没有就用名字首字占位（不假装有截图）。 */
+    const thumb = (item) => item.preview
+      ? `<div class="wb-thumb"><img src="${item.preview}" alt="${item.name} 示例图" /></div>`
+      : `<div class="wb-thumb"><span class="letter">${(item.name || item.id || '?').slice(0, 1)}</span></div>`
+
+    function renderWorkbenches(payload) {
+      workbenchList = payload?.workbenches ?? []
+      workbenchTrust = payload?.trustNotice ?? ''
+      $('workbench-trust').textContent = workbenchTrust
+      $('workbench-list').innerHTML = workbenchList.length
+        ? workbenchList.map(item => `<button class="wb-card" data-wb-open="${item.id}" type="button">
+            ${thumb(item)}
+            <div class="wb-name"><span>${item.name}</span>${item.active ? '<span class="wb-flag">使用中</span>' : ''}${item.builtin ? '<span class="wb-badge">内置</span>' : ''}</div>
+            <div class="wb-meta">v${item.version}${(item.unacknowledged ?? []).length ? ' · 待确认能力' : ''}</div>
+          </button>`).join('')
+        : '<p class="note">还没有工作台。</p>'
+
+      document.querySelectorAll('[data-wb-open]').forEach(card => card.onclick = () => openWorkbenchDetail(card.dataset.wbOpen))
+    }
+
+    /** 详情：能力告知 + 启用 + 参数 + 日志/重载/导出/卸载。列表本身保持克制。 */
+    function openWorkbenchDetail(id) {
+      const item = workbenchList.find(entry => entry.id === id)
+      if (!item) return
+      const pending = item.unacknowledged ?? []
+      modalTitle.textContent = item.name
+      modal.hidden = false
+      modalContent.innerHTML = `
+        ${item.preview ? `<div class="wb-detail-thumb"><img src="${item.preview}" alt="${item.name} 示例图" /></div>` : ''}
+        ${item.description ? `<p class="note" style="margin:10px 0 0">${item.description}</p>` : ''}
+        <div class="wb-kv">
+          <b>状态</b><span>${item.active ? '● 正在使用（右键小岛打开它）' : '未启用'}</span>
+          <b>版本</b><span>v${item.version}${item.builtin ? ' · 内置，随宿主分发' : ''}</span>
+          <b>标识</b><span><code>${item.id}</code></span>
+          ${item.sourceDir ? `<b>源码</b><span><code>${item.sourceDir}</code></span>` : ''}
+        </div>
+        <div class="card-head" style="margin:14px 0 6px"><h2>它会做什么</h2><span class="hint">${pending.length ? `${pending.length} 项待确认` : '已确认'}</span></div>
+        <div class="wb-caps">${capChips(item)}</div>
+        ${pending.length ? '<p class="note" style="margin-top:10px;color:#ffd9a0">启用前需要你确认上面标着「未确认」的能力 —— 确认后它就能真的做这些事。</p>' : ''}
+        <div class="modal-actions">
+          <span class="hint">${workbenchTrust}</span>
+          <button class="ghost wide" data-wb-params="${item.id}" ${item.hasSettings ? '' : 'hidden'}>参数${item.paramCount ? `（${item.paramCount}）` : ''}</button>
+          <button class="ghost wide" data-wb-logs="${item.id}">日志</button>
+          <button class="ghost wide" data-wb-reload="${item.id}" title="改开发目录里的文件后重新加载（清单里的能力声明也会重新读）">重载</button>
+          <button class="ghost wide" data-wb-export="${item.id}" ${item.builtin ? 'hidden' : ''}>导出插件包</button>
+          <button class="danger" data-wb-uninstall="${item.id}" ${item.builtin ? 'hidden' : ''}>卸载</button>
+          ${item.active ? '' : `<button class="primary" data-wb-activate="${item.id}">${pending.length ? '确认并启用' : '启用'}</button>`}
+        </div>`
+
+      modalContent.querySelectorAll('[data-wb-activate]').forEach(button => button.onclick = () => activateWorkbench(button.dataset.wbActivate))
+      modalContent.querySelectorAll('[data-wb-params]').forEach(button => button.onclick = () => openWorkbenchParams(button.dataset.wbParams))
+      modalContent.querySelectorAll('[data-wb-logs]').forEach(button => button.onclick = () => openWorkbenchLogs(button.dataset.wbLogs))
+      modalContent.querySelectorAll('[data-wb-reload]').forEach(button => button.onclick = async () => {
+        const result = await api.reloadWorkbench(button.dataset.wbReload)
+        if (!result?.ok) { notice(result?.error ?? '重载失败'); return }
+        notice(`已重载 ${button.dataset.wbReload}${(result.capabilities ?? []).length ? `（声明了 ${result.capabilities.join('、')}）` : ''}`)
+        await refreshWorkbenches()
+        openWorkbenchDetail(button.dataset.wbReload)
+      })
+      modalContent.querySelectorAll('[data-wb-export]').forEach(button => button.onclick = async () => {
+        const result = await api.exportWorkbenchPackage(button.dataset.wbExport)
+        if (result?.canceled) { notice('已取消导出'); return }
+        if (!result?.ok) { notice(result?.error ?? '导出失败'); return }
+        notice(`已导出：${result.path}（${Math.round((result.bytes ?? 0) / 1024)} KB）—— 别人用「导入插件包」直接装`)
+      })
+      modalContent.querySelectorAll('[data-wb-uninstall]').forEach(button => button.onclick = () => twoStep(button, '确认卸载', async () => {
+        const result = await api.uninstallWorkbench(button.dataset.wbUninstall)
+        if (!result?.ok) { notice(result?.error ?? '卸载失败'); return }
+        modal.hidden = true; modalContent.innerHTML = ''
+        notice(`已卸载 ${button.dataset.wbUninstall}`)
+        await refreshWorkbenches()
+      }))
+    }
+    /** 参数：workbench.json 的 settings.fields，宿主渲染表单（和插件同一套体验）。 */
+    async function openWorkbenchParams(id) {
+      modalTitle.textContent = `参数 · ${id}`
+      modal.hidden = false
+      modalContent.innerHTML = ''
+      const result = await api.workbenchSettings(id)
+      const fields = result?.schema?.fields ?? []
+      const values = result?.values ?? {}
+      if (!fields.length) { modalContent.innerHTML = '<p class="note">这个工作台没有声明参数。</p>'; return }
+      modalContent.innerHTML = `<div class="params">${fields.map(field => {
+        const value = values[field.key] ?? field.default ?? ''
+        const label = `<span>${field.label}${field.description ? `<small>${field.description}</small>` : ''}</span>`
+        if (field.type === 'boolean') return `<label class="param">${label}<input type="checkbox" data-key="${field.key}" ${value ? 'checked' : ''} /></label>`
+        if (field.type === 'select') return `<label class="param">${label}<select data-key="${field.key}">${(field.options ?? []).map(option => `<option value="${option.value}"${String(option.value) === String(value) ? ' selected' : ''}>${option.label}</option>`).join('')}</select></label>`
+        if (field.type === 'textarea') return `<label class="param">${label}<textarea rows="2" data-key="${field.key}" placeholder="${field.placeholder ?? ''}">${value}</textarea></label>`
+        const type = field.type === 'number' ? 'number' : field.type === 'password' ? 'password' : field.type === 'color' ? 'color' : 'text'
+        return `<label class="param">${label}<input type="${type}" data-key="${field.key}" value="${String(value).replace(/"/g, '&quot;')}" placeholder="${field.placeholder ?? ''}" /></label>`
+      }).join('')}</div>
+      <div class="modal-actions"><span class="hint">保存后工作台立刻收到</span><button class="primary" id="wb-save-params">保存参数</button></div>`
+      $('wb-save-params').onclick = async () => {
+        const patch = {}
+        modalContent.querySelectorAll('[data-key]').forEach(input => {
+          const key = input.dataset.key
+          patch[key] = input.type === 'checkbox' ? input.checked : input.type === 'number' ? Number(input.value) : input.value
+        })
+        const saved = await api.setWorkbenchSettings(id, patch)
+        if (!saved?.ok) { notice(saved?.error ?? '保存失败'); return }
+        const button = $('wb-save-params')
+        button.textContent = '已保存 ✓'
+        setTimeout(() => { button.textContent = '保存参数' }, 1200)
+      }
+    }
+
+    async function refreshWorkbenches() {
+      const payload = await api.workbenches().catch(() => null)
+      if (!payload) { notice('读取工作台列表失败'); return }
+      renderWorkbenches(payload)
+      const issues = payload.issues ?? []
+      const box = $('workbench-issues')
+      if (!issues.length) { box.hidden = true; box.innerHTML = ''; return }
+      box.hidden = false
+      box.innerHTML = `<div class="card-head"><h2>没加载起来的工作台</h2><span class="hint">${issues.length} 个</span></div>`
+        + issues.map(issue => `<div class="issue"><b>${issue.id ?? '未知 id'}</b><small>${issue.reason}</small><small>${issue.directory}</small></div>`).join('')
+    }
+    /**
+     * 启用工作台。有未确认的能力时先弹宿主自己的确认框，把**它要做什么**逐条列出来 ——
+     * 工作台可分发，装上就能跑本机程序，所以这一步不能省。
+     */
+    async function activateWorkbench(id) {
+      const item = workbenchList.find(entry => entry.id === id)
+      const pending = (item?.unacknowledged ?? [])
+      if (pending.length) {
+        const labels = (item.capabilities ?? []).filter(cap => pending.includes(cap.capability))
+        const confirmed = await confirmCapabilities(item, labels)
+        if (!confirmed) return
+        const ack = await api.acknowledgeWorkbench(id, pending)
+        if (!ack?.ok) { notice('记录确认失败'); return }
+      }
+      const result = await api.activateWorkbench(id)
+      if (!result?.ok) {
+        notice(result?.error === 'capabilities-not-acknowledged' ? `还有未确认的能力：${(result.missing ?? []).join('、')}` : (result?.error ?? '启用失败'))
+        return
+      }
+      notice(`已启用 ${item?.name ?? id}（右键小岛即可打开）`)
+      await refreshWorkbenches()
+    }
+    /** 用宿主自己的模态框做能力确认，不用原生 confirm。 */
+    function confirmCapabilities(item, labels) {
+      return new Promise(resolve => {
+        modalTitle.textContent = `启用「${item.name}」前请确认`
+        modal.hidden = false
+        modalContent.innerHTML = `<p class="note" style="margin:0 0 10px">这个工作台声明了以下能力。启用后它可以真的做这些事：</p>
+          <div class="wb-caps">${labels.map(cap => `<span class="wb-cap ${RISKY_CAPS.includes(cap.capability) ? 'risky' : ''}">${cap.label}</span>`).join('')}</div>
+          <div class="modal-actions"><span class="hint">${workbenchTrust}</span><button class="ghost wide" id="wb-cancel">取消</button><button class="primary" id="wb-confirm">确认并启用</button></div>`
+        const done = (value) => { modal.hidden = true; modalContent.innerHTML = ''; resolve(value) }
+        $('wb-confirm').onclick = () => done(true)
+        $('wb-cancel').onclick = () => done(false)
+      })
+    }
+    async function openWorkbenchLogs(id) {
+      modalTitle.textContent = `日志 · ${id}`
+      modal.hidden = false
+      modalContent.innerHTML = '<div class="modal-actions"><button class="ghost wide" id="log-refresh">刷新</button><button class="ghost wide" id="log-clear">清空</button></div><pre id="plugin-log-body"></pre>'
+      logPluginId = `__workbench__${id}`
+      $('log-refresh').onclick = refreshLogs
+      $('log-clear').onclick = async () => { await api.clearLogs(logPluginId); await refreshLogs() }
+      await refreshLogs()
+    }
+    // ---------------------------------------------------------------- 插件安装（原插件工坊并入）
+    $('plugin-install').onclick = async () => {
+      const directory = await api.pickPluginDirectory()
+      if (!directory) return
+      const result = await api.installPlugin(directory)
+      if (!result?.ok) { notify(result?.error ?? '安装失败'); return }
+      notify(`已安装 ${result.plugin?.name ?? ''}（默认启用，改源码目录会自动热重载）`)
+      renderPlugins(await api.plugins())
+      renderIssues()
+    }
+    $('plugin-import').onclick = async () => {
+      const filePath = await api.pickPluginPackage()
+      if (!filePath) return
+      const result = await api.installPluginPackage(filePath)
+      if (!result?.ok) { notify(result?.error ?? '导入失败'); return }
+      // 包内清单决定装成插件还是控制台，装完提示去对应的页管理。
+      if (result.kind === 'workbench') { notice(`已导入控制台 ${result.plugin?.name ?? ''}（在「工作台」页确认能力后启用）`); await refreshWorkbenches() }
+      else { notify(`已安装插件 ${result.plugin?.name ?? ''}`); renderPlugins(await api.plugins()); renderIssues() }
+    }
+    $('plugin-skill').onclick = async () => {
+      const result = await api.downloadSkill('plugin')
+      if (result?.canceled) return
+      if (!result?.ok) { notify(result?.error ?? '导出失败'); return }
+      notify(`已导出 Skill 包：${result.path}（${Math.round((result.bytes ?? 0) / 1024)} KB）—— 解压到本地 AI 的 skills 目录`)
+    }
+    $('workbench-skill').onclick = async () => {
+      const result = await api.downloadSkill('workbench')
+      if (result?.canceled) return
+      if (!result?.ok) { notice(result?.error ?? '导出失败'); return }
+      notice(`已导出 Skill 包：${result.path}（${Math.round((result.bytes ?? 0) / 1024)} KB）—— 解压到本地 AI 的 skills 目录`)
+    }
+    $('workbench-install').onclick = async () => {
+      const directory = await api.pickWorkbenchDirectory()
+      if (!directory) return
+      const result = await api.installWorkbench(directory)
+      if (!result?.ok) { notice(result?.error ?? '安装失败'); return }
+      notice(`已安装 ${result.workbench?.name ?? ''}（点开卡片确认能力后就能启用）`)
+      await refreshWorkbenches()
+    }
+    $('workbench-import').onclick = async () => {
+      const result = await api.importWorkbenchPackage()
+      if (result?.canceled) return
+      if (!result?.ok) { notice(result?.error ?? '导入失败'); return }
+      // 同一个入口插件包也能装：按包内清单自动分流。
+      if (result.kind === 'workbench') { notice(`已导入控制台 ${result.name}（确认能力后启用）`); await refreshWorkbenches() }
+      else notice(`已导入插件 ${result.name}（在「插件」页里管理）`)
+    }
+    // 弹窗只认 × 按钮和 Esc 关闭：点遮罩/窗口外不关闭，避免误触把填了一半的表单关掉。
+    document.addEventListener('keydown', event => { if (event.key === 'Escape' && !modal.hidden) $('plugin-modal-close').click() })
+    document.querySelectorAll('[data-tab]').forEach(button => button.onclick = () => { document.querySelectorAll('[data-tab]').forEach(item => item.classList.toggle('active', item === button)); document.querySelectorAll('main > section').forEach(item => item.hidden = item.id !== button.dataset.tab) ; if (button.dataset.tab === 'plugins') { api.plugins().then(renderPlugins); renderIssues() } ; if (button.dataset.tab === 'workbench') void refreshWorkbenches() })
+    document.querySelectorAll('[data-idle]').forEach(button => button.onclick = async () => { settings = await api.setIdleMode(button.dataset.idle); render() })
+    $('save-top').onclick = async () => { settings = await api.setIslandTop($('top').value); render() }
+    $('save-scale').onclick = async () => { settings = await api.setMiniScale($('scale').value); render() }
+    $('scale').oninput = () => $('scale-value').textContent = `${Number($('scale').value).toFixed(2)}×`
+    $('close').onclick = () => api.close()
+    api.get().then(value => { settings = { ...settings, ...value }; render(); const tab = new URLSearchParams(location.search).get('tab'); if (tab) document.querySelector(`[data-tab="${tab}"]`)?.click() }); api.onChanged(value => { settings = { ...settings, ...value }; render() }); api.onTab?.(tab => document.querySelector(`[data-tab="${tab}"]`)?.click())
+  </script>
+</body>
+</html>
