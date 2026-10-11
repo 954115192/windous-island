@@ -2,8 +2,6 @@
 
 Windows 桌面灵动岛。一个 Electron 宿主进程负责屏幕顶部的"岛"本身，所有功能由**独立网页插件**提供 —— 插件内容被宿主逐帧裁剪，跟着岛的外壳一起生长、收缩。以下截图均来自真实运行画面（见 `docs/images/`）。
 
-[插件中心（插件市场）的整体规划见 `docs/plugin-center-plan.md`](docs/plugin-center-plan.md)（**设计稿，未实施**）。
-
 ## 软件特点
 
 - **宿主与插件彻底分离**：插件是普通网页，不依赖任何前端框架；宿主不关心插件内部实现，两者只通过契约化的 SDK 通信。
@@ -224,15 +222,6 @@ pwsh -File scripts/tests/phase-c-e2e.ps1     # 日志/页面异常/热重载端�
 | [`docs/plugin-contract.md`](docs/plugin-contract.md) | 插件契约 v2 全文（消息、尺寸、主题、性能、能力） |
 | [`docs/plugin-requirements.md`](docs/plugin-requirements.md) | 插件视觉与行为要求 |
 | [`docs/workbench-contract.md`](docs/workbench-contract.md) | 工作台契约（能力模型、内容管理） |
-| [`docs/UPGRADE.md`](docs/UPGRADE.md) | 从旧版 island-vue 迁移说明 |
-| [`docs/plugin-center-plan.md`](docs/plugin-center-plan.md) | 插件中心/市场规划（**设计稿，未实施**） |
 | [`design/DESIGN.md`](design/DESIGN.md) | 设计规范（视觉语言、token、动效原则） |
 | [`skills/`](skills/) | 插件 / 工作台生成规范（SKILL.md，可装给本地 AI） |
 
-# 许可证
-
-本项目采用 [**CC BY-NC 4.0**](LICENSE)（署名-非商业性使用 4.0 国际）协议：
-
-- ✅ 可以自由地**使用、复制、修改、分发**本项目及其产物（包括个人学习、内部工具、二次开发）。
-- ❌ **不得用于商业目的**（出售、付费服务、商业产品内嵌等）。商用授权需另行联系作者。
-- 分发时需保留原署名与本协议声明。
