@@ -63,6 +63,8 @@ export class PluginViewManager {
   private viewportRadius = 0
   private workbench: WebContentsView | null = null
   private workbenchStage: ViewBounds | null = null
+  /** 非 null 时收起动画在跑：工作台视图随视口缩放（见 beginWorkbenchCollapse）。 */
+  private workbenchCollapseStage: { width: number; height: number } | null = null
   private host: HostIdentity = { contractVersion: 2, hostVersion: '0.0.0', hostName: 'Activity Island', capabilities: [] }
   private deviceScaleFactor = 1
   private contractState: ContractState = { islandMode: 'idle', activePluginId: null, scale: 1 }
@@ -371,7 +373,16 @@ export class PluginViewManager {
     // clipping still gets the animated capsule for free.
     this.viewport.setBorderRadius(this.effectiveRadius())
     for (const [id, content] of this.bounds) this.applyLocalBounds(id, content)
-    if (this.workbench && this.workbenchStage) this.applyLocalBoundsTo(this.workbench, this.workbenchStage)
+    if (this.workbench && this.workbenchStage) {
+      if (this.workbenchCollapseStage) {
+        this.workbench.setBounds({ x: 0, y: 0, width: next.width, height: next.height })
+        this.workbench.setBorderRadius(this.effectiveRadius())
+        const zoom = next.width / this.workbenchCollapseStage.width
+        if (Number.isFinite(zoom) && zoom > 0) this.workbench.webContents.setZoomFactor(zoom)
+      } else {
+        this.applyLocalBoundsTo(this.workbench, this.workbenchStage)
+      }
+    }
   }
 
   /**
@@ -403,6 +414,27 @@ export class PluginViewManager {
     if (!bounds) { view.setVisible(false); return }
     this.applyLocalBoundsTo(view, bounds)
     view.setVisible(true)
+  }
+
+  /**
+   * 收起动画期间的"缩进"模式：工作台视图不再保持全尺寸方形裁剪（父视图的圆角
+   * 裁不到子视图，而它自己的圆角在远超视口的四角上 —— 收起时会看到一个方形黑块）。
+   * 改为每帧把视图 bounds 收成当前视口（圆角 = 胶囊圆角），同时用 zoomFactor 把
+   * 页面等比缩小：页面 CSS 视口恒为 zoom 前的舞台尺寸（宽向严格恒定），不发生重排。
+   */
+  beginWorkbenchCollapse(stage: { width: number; height: number }): void {
+    if (!this.workbench) return
+    this.workbenchCollapseStage = { width: Math.max(1, stage.width), height: Math.max(1, stage.height) }
+  }
+
+  /** 结束"缩进"模式：恢复全尺寸 bounds 与 zoom=1（重新打开控制台前必须回到这里）。 */
+  endWorkbenchCollapse(): void {
+    if (!this.workbenchCollapseStage) return
+    this.workbenchCollapseStage = null
+    if (this.workbench) {
+      if (this.workbenchStage) this.applyLocalBoundsTo(this.workbench, this.workbenchStage)
+      this.workbench.webContents.setZoomFactor(1)
+    }
   }
 
   /**

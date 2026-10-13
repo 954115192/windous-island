@@ -307,7 +307,7 @@ function pluginGeometry(layout: AnimatedLayout, placement: PluginPlacement) {
 }
 
 /** Compact (small) island layout for one scale: plugin placements plus the content size the shell grows around. */
-function compactLayout(visible: PluginDescriptor[], scale: number, options: { solo?: boolean; maxWidth?: number } = {}): { placements: PluginPlacement[]; separators: number[]; baseWidth: number; height: number; overflow: number; chipX: number | null } {
+function compactLayout(visible: PluginDescriptor[], scale: number, options: { solo?: boolean; soloWidth?: number; maxWidth?: number } = {}): { placements: PluginPlacement[]; separators: number[]; baseWidth: number; height: number; overflow: number; chipX: number | null } {
   const padding = Math.round(8 * scale)
   const measured = visible.map(plugin => {
     const size = pluginSize(plugin, 'small')
@@ -317,9 +317,14 @@ function compactLayout(visible: PluginDescriptor[], scale: number, options: { so
   // 提醒态：只显示一条，居中，不给分隔线也不溢出。
   if (options.solo && measured.length > 0) {
     const only = measured[0]
-    const baseWidth = Math.max(minWidth, only.width + padding * 2)
+    // 提醒可申请更宽（island.alert 的 width，逻辑 px）：按 miniScale 缩放，
+    // 不小于清单声明的 small 宽（推荐尺寸下限），不超过 mini 条最大宽。
+    // 注意申请的宽度直接作用于插件视图本身（页面是 100% 布局，能自适应更宽的画布）。
+    const requested = options.soloWidth !== undefined ? Math.round(options.soloWidth * scale) : only.width
+    const contentWidth = Math.max(only.width, Math.min(requested, MINI_BAR_MAX_WIDTH - padding * 2))
+    const baseWidth = Math.max(minWidth, contentWidth + padding * 2)
     return {
-      placements: [{ pluginId: only.pluginId, x: Math.round((baseWidth - only.width) / 2), width: only.width, height: only.height }],
+      placements: [{ pluginId: only.pluginId, x: Math.round((baseWidth - contentWidth) / 2), width: contentWidth, height: only.height }],
       separators: [], baseWidth, height: only.height, overflow: 0, chipX: null,
     }
   }
@@ -404,12 +409,13 @@ function stageOrigin(width: number, height: number, top = islandSettings.islandT
 function updatePluginAnimationFrame(frame: { width: number; height: number; top: number; radius: number }): void {
   animatedFrame = { width: Math.max(1, frame.width), height: Math.max(1, frame.height), top: frame.top, radius: Math.max(0, frame.radius) }
   syncPluginViews(animatedFrame)
-  // 收起动画到位了 → 这时候才把插件切成 mini 内容（早切就是"内容先缩进岛里"）。
+  // hostLayoutState 里存的就是这次过渡的目标外壳尺寸，跟它比最准。
+  const settled = Math.abs(animatedFrame.width - hostLayoutState.width) <= 2 && Math.abs(animatedFrame.height - hostLayoutState.height) <= 2
+  // 收起进度到点（或弹簧到位）：先撤工作台内容（它叠在插件之上），剩下的交给空胶囊；
+  // 再切插件 mini 内容（早切就是"内容先缩进岛里"）。
+  if (pendingWorkbenchHide && (animatedFrame.width <= pendingWorkbenchHide.belowWidth || settled)) hideWorkbench()
   if (pendingMiniReveal) {
-    // hostLayoutState 里存的就是这次 mini 条的目标外壳尺寸，跟它比最准。
-    if (Math.abs(animatedFrame.width - hostLayoutState.width) <= 2 && Math.abs(animatedFrame.height - hostLayoutState.height) <= 2) {
-      applyPendingMiniReveal('frame')
-    }
+    if (settled) applyPendingMiniReveal('frame')
   }
 }
 function settingsFile(): string { return path.join(app.getPath('userData'), 'settings.json') }
@@ -607,8 +613,36 @@ function ensureWorkbenchView(): Promise<WebContentsView | null> {
 
 /** Close the console. The next layout sync hides it; this also does it now. */
 function hideWorkbench(): void {
+  cancelDeferredWorkbenchHide()
+  viewManager?.endWorkbenchCollapse()
   workbenchStage = null
   viewManager?.setWorkbenchStage(null)
+}
+
+/**
+ * 从工作台收回 mini 时的"延迟收尾"：立刻 `setVisible(false)` 会让控制台内容
+ * 在收缩动画的第一帧就整个消失，只剩空壳在缩。正确做法和插件的
+ * pendingMiniReveal 对称 —— 保留视图，让收缩中的原生裁剪窗把它逐帧裁掉。
+ * 但内容**不跟全程**：宽度收到 WORKBENCH_HIDE_PROGRESS 进度时就提前撤掉
+ * （弹簧收尾段最慢，内容缩到很小时还在磨蹭，反而生硬），剩下的完全交给
+ * 空胶囊的岛动画；900ms 超时兜底。工作台视图叠在插件之上，所以
+ * hideWorkbench 必须先于 applyPendingMiniReveal 执行（见 updatePluginAnimationFrame）。
+ */
+let pendingWorkbenchHide: { timer: NodeJS.Timeout; belowWidth: number } | null = null
+/** 收起宽度进度的隐藏点：0 = 一收就藏，1 = 收到最小才藏。 */
+const WORKBENCH_HIDE_PROGRESS = 0.7
+function deferWorkbenchHide(): void {
+  cancelDeferredWorkbenchHide()
+  const timer = setTimeout(() => { pendingWorkbenchHide = null; hideWorkbench() }, 900)
+  pendingWorkbenchHide = { timer, belowWidth: Number.POSITIVE_INFINITY }
+}
+/** 收起目标布局发出后调用：按起始/目标宽度算出提前撤内容的宽度阈值。 */
+function armWorkbenchHideThreshold(): void {
+  if (!pendingWorkbenchHide || !workbenchStage) return
+  pendingWorkbenchHide.belowWidth = workbenchStage.width + (hostLayoutState.width - workbenchStage.width) * WORKBENCH_HIDE_PROGRESS
+}
+function cancelDeferredWorkbenchHide(): void {
+  if (pendingWorkbenchHide) { clearTimeout(pendingWorkbenchHide.timer); pendingWorkbenchHide = null }
 }
 
 /** True while the island console is actually on screen. */
@@ -654,6 +688,9 @@ async function enterCustomMode(): Promise<void> {
   if (!mainWindow || !viewManager) return
   clearAlertCarry()
   cancelCollapse()
+  cancelDeferredWorkbenchHide()
+  // 若上一次收起动画中途被打断，zoom 可能停在 <1：重新打开前必须恢复。
+  viewManager.endWorkbenchCollapse()
   // 控制台是最高优先级的"用户操作"：提醒与独占都让位（排队的提醒保留）。
   arbiter.interrupt()
   idleHover = false
@@ -808,7 +845,7 @@ async function showRest(hovered = false): Promise<void> {
 }
 
 /** 提醒态：mini 条只显示这一条（覆盖式），结束由仲裁器的 ttl 决定。 */
-async function showAlertBar(alert: { pluginId: string; level: AlertLevel; color?: string }): Promise<void> {
+async function showAlertBar(alert: { pluginId: string; level: AlertLevel; color?: string; width?: number }): Promise<void> {
   const plugin = pluginManager?.get(alert.pluginId)
   if (!plugin) return
   alertActive = true
@@ -817,7 +854,7 @@ async function showAlertBar(alert: { pluginId: string; level: AlertLevel; color?
   // 档位与自定义颜色单独推给渲染层，岛壳据此画描边/光晕。不走 sendLayout：那条通道带 12 个位置参数
   // 和弹簧动画语义，塞进去会牵动动效路径。
   sendAlert(alert.level, alert.color)
-  await showCompact(hitInside, plugin)
+  await showCompact(hitInside, plugin, alert.width)
 }
 
 /** 把当前提醒档位告诉岛壳；null 表示提醒已结束（撤掉描边光晕）。 */
@@ -884,9 +921,15 @@ async function showIdle(hovered = false): Promise<void> {
   const serial = ++transitionSerial
   idleHover = hovered
   compactHover = false
+  // 从工作台收回 mini 要走"吸入"（见 deferWorkbenchHide）：必须在下面的 patch 改模式前记下来。
+  const fromConsole = islandState.value.mode === 'custom'
   // 插件视图不隐藏：它们保持可见、由 syncPluginViews 的 1x1 裁剪窗藏住，
   // 页面持续出帧，下次展开内容能跟着胶囊一起长出来。
-  hideWorkbench()
+  if (fromConsole) {
+    deferWorkbenchHide()
+    if (workbenchStage) viewManager?.beginWorkbenchCollapse(workbenchStage)
+  }
+  else hideWorkbench()
   const scale = islandSettings.miniScale
   const baseSize = islandSettings.idleMode === 'collapsed'
     ? (hovered ? SMALL_DEFAULT : { width: 64, height: 8 })
@@ -902,13 +945,14 @@ async function showIdle(hovered = false): Promise<void> {
   setHitRegion(stageHitRegion(stage, (collapsedMode ? 4 : 19) * scale))
   const showClock = plugins().every(plugin => plugin.manifest.small?.enabled === false)
   sendLayout('idle', undefined, [], collapsed, size, stage.y, [], size, false, showClock)
+  if (fromConsole) armWorkbenchHideThreshold()
   await animateWindow(bounds)
   if (serial !== transitionSerial) return
   showHost()
   arbiter.noteIdle()
 }
 
-async function showCompact(hovered = false, solo?: PluginDescriptor): Promise<void> {
+async function showCompact(hovered = false, solo?: PluginDescriptor, soloWidth?: number): Promise<void> {
   if (!mainWindow || !viewManager) return
   cancelCollapse()
   idleHover = false
@@ -969,7 +1013,7 @@ async function showCompact(hovered = false, solo?: PluginDescriptor): Promise<vo
   }
 
   const serial = ++transitionSerial
-  const { placements, separators, baseWidth, height, overflow, chipX } = compactLayout(visible, scale, { solo: !!solo })
+  const { placements, separators, baseWidth, height, overflow, chipX } = compactLayout(visible, scale, { solo: !!solo, soloWidth })
   for (const plugin of visible) await viewManager.ensure(plugin)
   if (serial !== transitionSerial) return
   for (const plugin of visible) viewManager.setZoom(plugin.manifest.id, scale)
@@ -980,7 +1024,13 @@ async function showCompact(hovered = false, solo?: PluginDescriptor): Promise<vo
   const width = baseWidth + (hovered ? 10 : 0)
   const windowHeight = height + (hovered ? 4 : 0)
   const targetLayout: AnimatedLayout = { width: baseWidth, height, top, placements, clipPlugins: true }
-  hideWorkbench()
+  // 从工作台收回 mini：先别藏视图，让收缩中的裁剪窗把控制台"吸"进去（见 deferWorkbenchHide）。
+  const fromConsole = islandState.value.mode === 'custom'
+  if (fromConsole) {
+    deferWorkbenchHide()
+    if (workbenchStage) viewManager?.beginWorkbenchCollapse(workbenchStage)
+  }
+  else hideWorkbench()
   const bounds = centerBounds(width, windowHeight, top)
   if (!bounds) return
   // A compact hover changes only the host shell size. Do not hide or prepare
@@ -991,7 +1041,8 @@ async function showCompact(hovered = false, solo?: PluginDescriptor): Promise<vo
   // 看起来就是"内容缩到岛里面去了"，而展开是反过来的（胶囊先长，内容随之露出来）。
   // 正确做法：这一段时间保持插件原来的内容与尺寸不动，让收缩中的胶囊把它裁掉（吸进去的效果），
   // 等胶囊收到 mini 尺寸了再切 small 并显示 mini 内容。
-  const collapsing = !solo && (islandState.value.mode === 'expanded' || islandState.value.mode === 'detail')
+  // 工作台（custom）同样算"收起"：插件本来就被工作台盖着，同样等到位后再切。
+  const collapsing = !solo && (fromConsole || islandState.value.mode === 'expanded' || islandState.value.mode === 'detail')
   const prewarmed = !solo
     && islandState.value.mode === 'idle'
     && compactScale === scale
@@ -1020,6 +1071,7 @@ async function showCompact(hovered = false, solo?: PluginDescriptor): Promise<vo
     clearPendingMiniReveal()
   }
   sendLayout('compact', 'small', separators, false, { width, height: windowHeight }, stage.y, placements, { width: baseWidth, height, top }, true, false, true, { overflow, chipX })
+  if (fromConsole) armWorkbenchHideThreshold()
   await animateWindow(bounds)
   if (serial !== transitionSerial) return
   showHost()

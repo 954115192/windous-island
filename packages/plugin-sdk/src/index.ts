@@ -73,6 +73,12 @@ export interface AlertOptions {
   badge?: string
   /** 可选自定义光圈色：#RGB / #RRGGBB / #RRGGBBAA。不传按 level 取语义色。 */
   color?: string
+  /**
+   * 可选申请的覆盖条宽度（逻辑 px）：实际宽度 = max(清单 small.width, width)，
+   * 按 miniScale 缩放并钳到岛最大宽。长通知量好内容宽度再传；不传用清单声明的推荐宽度。
+   * 插件的 small 视图要能自适应更宽的画布（100% 布局）。
+   */
+  width?: number
 }
 
 export interface FocusOptions {

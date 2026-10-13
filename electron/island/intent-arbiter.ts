@@ -28,6 +28,11 @@ export interface AlertRequest {
   ttl: number
   /** 可选自定义光圈色（#RGB/#RRGGBB/#RRGGBBAA）。空 = 按 level 取语义色。 */
   color?: string
+  /**
+   * 可选申请的覆盖条宽度（逻辑 px）。实际宽度 = max(清单 small.width, width)，
+   * 并钳到 mini 条最大宽 —— 只能加宽，不能把推荐尺寸以下的声明宽缩掉。
+   */
+  width?: number
 }
 
 export interface FocusRequest {
@@ -72,14 +77,16 @@ export class IntentArbiter {
   constructor(private readonly host: IntentHost) {}
 
   // ---------------------------------------------------------------- alert
-  requestAlert(input: { pluginId: string; key?: string; level?: unknown; ttl?: unknown; color?: unknown }): void {
+  requestAlert(input: { pluginId: string; key?: string; level?: unknown; ttl?: unknown; color?: unknown; width?: unknown }): void {
     const pluginId = input.pluginId
     const key = typeof input.key === 'string' && input.key.trim() ? input.key.trim() : `${pluginId}:default`
     const level = normalizeLevel(input.level)
     const requested = Number(input.ttl)
     const ttl = clamp(Number.isFinite(requested) && requested > 0 ? requested : DEFAULT_TTL[level], TTL_MIN, TTL_MAX)
     const color = normalizeColor(input.color)
-    const alert: AlertRequest = color ? { pluginId, key, level, ttl, color } : { pluginId, key, level, ttl }
+    const widthRaw = Number(input.width)
+    const width = Number.isFinite(widthRaw) && widthRaw > 0 ? Math.round(widthRaw) : undefined
+    const alert: AlertRequest = { pluginId, key, level, ttl, ...(color ? { color } : {}), ...(width ? { width } : {}) }
 
     // 同 key 覆盖：正在显示的重新计时；排队中的替换，不占新位置。
     if (this.showing && this.showing.pluginId === pluginId && this.showing.key === key) {

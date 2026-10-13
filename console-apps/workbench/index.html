@@ -19,8 +19,11 @@
     --ok: var(--success);
   }
   * { box-sizing: border-box; }
-  html, body { width:100%; height:100%; min-width:100%; min-height:100%; margin:0; padding:0; overflow:hidden; background:transparent; }
-  body { display:flex; align-items:stretch; justify-content:center; padding:0; color:var(--ink); }
+  html, body { width:100%; height:100%; min-width:100%; margin:0; padding:0; overflow:hidden; background:transparent; }
+  /* min-height 锁定布局高度：宿主收起动画会把本页等比 zoom 缩小（宽向 CSS 尺寸恒定），
+     高向视口随之变矮 —— 没有 min-height 的话 body 每帧跟着压缩重排，内容会跳动。
+     本页不调用 workbench.resize()，舞台恒为 1040×700，700 即默认舞台高。 */
+  body { min-height:700px; display:flex; align-items:stretch; justify-content:center; padding:0; color:var(--ink); }
   [data-activity-island-root] {
     position:relative; width:100%; max-width:1040px; height:100%; max-height:700px; padding:20px 22px; overflow:hidden;
     /* 28 必须与岛壳的圆角一致（--r-lg），不能换成 --r-panel：

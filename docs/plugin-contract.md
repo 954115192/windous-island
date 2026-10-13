@@ -133,6 +133,7 @@ host:hello {
 2. **勿扰/全局策略**（❌ 待实现，仲裁器已留好 `canAlert()` 接入点）：全屏独占应用运行中、`勿扰` 开关打开时，`alert`/`focus` 一律 `denied(reason:'dnd')`，但**不丢**——进队列，策略解除后按 level 顺序补发一次（critical 过期仍补，info 过期丢弃）。
 3. **focus**：同一时刻只有一个；新请求在无冲突时 `granted`；有冲突时按"level/时间"排队，队列长度 1，超出直接 `denied(reason:'busy')`。被抢占者收到 `preempted`，**恢复由插件自己重发**（宿主不记状态，避免双份状态机）。
 4. **alert**：队列长度 3，同 `key` 覆盖不排队；`ttl` 到期 `expired`；用户点击该提醒 = 立即结束并回调。
+   - **覆盖条宽度可申请**（✅ 2026-10）：`alert({ width })` 传逻辑 px，实际宽度 = `max(清单 small.width, width)`（按 miniScale 缩放、钳到 mini 条最大宽），宽度直接作用于插件 small 视图（100% 布局自适应）；不传 = 清单声明的推荐宽度。提醒段永不因溢出丢弃的规则不变。
 5. **ambient**：只在 mini 条可见时存在，不参与抢占。
 
 排序（mini 条内）：**用户在设置里的顺序** > `priority`（manifest，默认 50，大到小）> 插件名。

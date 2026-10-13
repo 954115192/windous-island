@@ -193,7 +193,7 @@ npm run dist           # NSIS 安装包 → release\Activity Island-<版本>-set
 npm run dist:portable  # 免安装单文件 exe
 ```
 
-- 安装/卸载都不动用户数据：插件、日志、设置都在 `%APPDATA%\dynamic-island-host\`。
+- 安装不动用户数据：插件、日志、设置都在 `%APPDATA%\dynamic-island-host\`；卸载时会询问是否连同这些数据一起删除，默认保留（重装后插件还在）。
 - 灵动岛不内置任何插件，首次启动是空岛 —— 在「控制台管理 → 插件」装一个，或用本地 AI（下载 Skill 包）生成一个。
 
 # 测试矩阵

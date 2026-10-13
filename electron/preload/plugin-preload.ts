@@ -258,8 +258,8 @@ const sdk = {
     presence: (): boolean => presence,
   },
 
-  /** 声明一条提醒：整条覆盖显示 mini 条，ttl 到期自动退场。结果见 onIntent。color：可选自定义光圈色（#RGB/#RRGGBB/#RRGGBBAA）。 */
-  alert: (options: { key?: string; level?: 'info' | 'warn' | 'critical'; ttl?: number; badge?: string; color?: string } = {}) => command('alert', [options]),
+  /** 声明一条提醒：整条覆盖显示 mini 条，ttl 到期自动退场。结果见 onIntent。color：可选自定义光圈色；width：可选申请覆盖条宽度（实际 = max(清单 small 宽, width)），长通知用它变长显示。 */
+  alert: (options: { key?: string; level?: 'info' | 'warn' | 'critical'; ttl?: number; badge?: string; color?: string; width?: number } = {}) => command('alert', [options]),
   /** 请求独占展开：granted / queued / denied(busy|no-view) / preempted，结果见 onIntent。 */
   focus: (options: { view?: 'medium' | 'large'; reason?: string } = {}) => command('focus', [options]),
   onIntent: (listener: Listener<IntentMessage>) => { intentListeners.add(listener); return () => intentListeners.delete(listener) },

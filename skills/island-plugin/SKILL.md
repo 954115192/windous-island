@@ -73,7 +73,7 @@ island.onVisibility(v => …)                         // { visible, reason, rend
 island.every(1000, render)                          // rendering:false 自动暂停；隐藏不轮询
 island.raf(dt => …)                                 // 动画循环，同样自动暂停
 island.fitCanvas(canvas, draw)                      // 像素尺寸对齐 devicePixelRatio
-island.alert({ key, level, ttl, color })            // 整条覆盖提醒，详见下节
+island.alert({ key, level, ttl, color, width })     // 整条覆盖提醒，详见下节
 island.focus({ view: 'medium' })                    // 请求独占展开 → onIntent 回执
 island.events.on('notify', p => …)                  // 自己后台脚本的事件会发给自己
 await island.storage.get/set(key, value)
@@ -90,6 +90,7 @@ island.settings.all() / onChange(v => …)            // 读 settings.fields 的
 
 - level：info（完成/恢复，默认 4s）/ warn（偏低/卡住，6s）/ critical（失败/失效，9s）
 - color：可选 #RGB/#RRGGBB/#RRGGBBAA 自定义光圈颜色
+- width：可选，这条提醒需要的宽度（逻辑 px）。实际宽度 = max(清单 small.width, width)，按 miniScale 缩放并钳到岛最大宽；**不传就用清单声明的推荐宽度**。长通知在调 alert 前量好内容宽度传入，插件的 small 视图用 100% 布局自适应更宽的画布
 - key：同 key 新提醒立即覆盖并重置计时；不同 key 排队（上限 3）。进度类滚动更新用固定 key
 - 常见错误：只调 alert 不画内容；用"N 秒没收到 ready"判死活（ready 只发一次，热重载后收不到，必然误报）；denied 后无限重试
 
